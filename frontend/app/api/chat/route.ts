@@ -10,28 +10,31 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "Query is required" }, { status: 400 });
     }
 
-    // Proxy to Python backend when available; return a stub otherwise.
+    let upstream: Response;
     try {
-      const upstream = await fetch(`${BACKEND_URL}/chat`, {
+      upstream = await fetch(`${BACKEND_URL}/query`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query }),
-        signal: AbortSignal.timeout(30_000),
+        signal: AbortSignal.timeout(120_000),
       });
-
-      if (!upstream.ok) throw new Error(`Backend ${upstream.status}`);
-      const data = await upstream.json();
-      return Response.json(data);
     } catch {
-      // Stub response when no backend is running
+      // Network-level failure — backend is not reachable
       return Response.json({
-        answer:
-          `You asked: "${query}"\n\n` +
-          `The backend RAG service is not yet connected. Once your Python backend is running at ${BACKEND_URL}, ` +
-          `answers will be retrieved from the vector store and displayed here.`,
-        sources: ["stub — backend offline"],
+        answer: `Could not reach the backend at ${BACKEND_URL}. Make sure the Python server is running with:\n\nuvicorn backend.main:app --reload`,
+        sources: [],
       });
     }
+
+    const data = await upstream.json();
+
+    if (!upstream.ok) {
+      // Backend returned an error — surface the real message
+      const detail = data?.detail ?? data?.error ?? `Backend returned ${upstream.status}`;
+      return Response.json({ answer: `Backend error: ${detail}`, sources: [] });
+    }
+
+    return Response.json(data);
   } catch (err) {
     console.error("[chat]", err);
     return Response.json({ error: "Request failed" }, { status: 500 });

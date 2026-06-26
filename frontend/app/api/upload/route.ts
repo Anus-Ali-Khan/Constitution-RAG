@@ -1,8 +1,13 @@
 import { NextRequest } from "next/server";
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
 
-const DOCS_DIR = path.resolve(process.cwd(), "..", "docs");
+const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
+
+const ALLOWED_TYPES = [
+  "application/pdf",
+  "text/plain",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+];
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,9 +18,7 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "No file provided" }, { status: 400 });
     }
 
-    const allowed = ["application/pdf", "text/plain", "application/msword",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
-    if (!allowed.includes(file.type)) {
+    if (!ALLOWED_TYPES.includes(file.type)) {
       return Response.json({ error: "File type not supported" }, { status: 415 });
     }
 
@@ -23,14 +26,24 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "File exceeds 50 MB limit" }, { status: 413 });
     }
 
-    await mkdir(DOCS_DIR, { recursive: true });
+    // Re-create the file from its bytes so Node.js fetch serialises it correctly
+    const bytes = await file.arrayBuffer();
+    const blob = new Blob([bytes], { type: file.type });
 
-    const safe = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
-    const dest = path.join(DOCS_DIR, safe);
-    const buffer = Buffer.from(await file.arrayBuffer());
-    await writeFile(dest, buffer);
+    const upstream = new FormData();
+    upstream.append("file", blob, file.name);
 
-    return Response.json({ success: true, path: dest, name: safe });
+    const res = await fetch(`${BACKEND_URL}/ingest`, {
+      method: "POST",
+      body: upstream,
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      return Response.json({ error: text || "Ingestion request failed" }, { status: res.status });
+    }
+
+    return Response.json({ success: true, name: file.name });
   } catch (err) {
     console.error("[upload]", err);
     return Response.json({ error: "Upload failed" }, { status: 500 });

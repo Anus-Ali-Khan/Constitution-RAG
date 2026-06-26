@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import {
   Scale,
@@ -17,7 +17,8 @@ interface UploadedFile {
   id: string;
   name: string;
   size: number;
-  status: "uploading" | "success" | "error";
+  status: "uploading" | "indexing" | "success" | "error";
+  jobId?: string;
   error?: string;
 }
 
@@ -26,11 +27,6 @@ interface SidebarProps {
   onToggle: () => void;
 }
 
-function formatBytes(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 function IconBtn({
   onClick,
@@ -67,9 +63,61 @@ function IconBtn({
   );
 }
 
+const STORAGE_KEY = "sidebar_files";
+
+function loadFiles(): UploadedFile[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed: UploadedFile[] = JSON.parse(raw);
+    // Any file that was mid-upload when the page closed should show as error
+    return parsed.map((f) =>
+      f.status === "uploading" ? { ...f, status: "error", error: "Upload interrupted by page refresh" } : f
+    );
+  } catch {
+    return [];
+  }
+}
+
 export default function Sidebar({ open, onToggle }: SidebarProps) {
-  const [files, setFiles] = useState<UploadedFile[]>([]);
-  const [uploading, setUploading] = useState<string[]>([]);
+  const [files, setFiles] = useState<UploadedFile[]>(() => loadFiles());
+
+  // Persist files to localStorage on every change
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(files));
+  }, [files]);
+
+  // Poll backend for indexing completion
+  useEffect(() => {
+    const indexing = files.filter((f) => f.status === "indexing" && f.jobId);
+    if (indexing.length === 0) return;
+
+    const interval = setInterval(async () => {
+      await Promise.all(
+        indexing.map(async (f) => {
+          try {
+            const res = await fetch(`/api/ingest-status?jobId=${f.jobId}`);
+            const data = await res.json();
+            if (data.status === "done") {
+              setFiles((prev) =>
+                prev.map((pf) => pf.id === f.id ? { ...pf, status: "success" } : pf)
+              );
+            } else if (typeof data.status === "string" && data.status.startsWith("error")) {
+              setFiles((prev) =>
+                prev.map((pf) =>
+                  pf.id === f.id ? { ...pf, status: "error", error: data.status.replace("error: ", "") } : pf
+                )
+              );
+            }
+          } catch {
+            // ignore transient network errors during polling
+          }
+        })
+      );
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [files]);
 
   const uploadFile = useCallback(async (file: File) => {
     const id = `${file.name}-${Date.now()}`;
@@ -77,28 +125,29 @@ export default function Sidebar({ open, onToggle }: SidebarProps) {
       { id, name: file.name, size: file.size, status: "uploading" },
       ...prev,
     ]);
-    setUploading((prev) => [...prev, id]);
 
     try {
       const form = new FormData();
       form.append("file", file);
       const res = await fetch("/api/upload", { method: "POST", body: form });
       const data = await res.json();
-      setFiles((prev) =>
-        prev.map((f) =>
-          f.id === id
-            ? { ...f, status: res.ok ? "success" : "error", error: data.error }
-            : f
-        )
-      );
+      if (res.ok && data.job_id) {
+        setFiles((prev) =>
+          prev.map((f) => f.id === id ? { ...f, status: "indexing", jobId: data.job_id } : f)
+        );
+      } else {
+        setFiles((prev) =>
+          prev.map((f) =>
+            f.id === id ? { ...f, status: res.ok ? "success" : "error", error: data.error } : f
+          )
+        );
+      }
     } catch {
       setFiles((prev) =>
         prev.map((f) =>
           f.id === id ? { ...f, status: "error", error: "Network error" } : f
         )
       );
-    } finally {
-      setUploading((prev) => prev.filter((x) => x !== id));
     }
   }, []);
 
@@ -294,7 +343,7 @@ export default function Sidebar({ open, onToggle }: SidebarProps) {
                 >
                   <CheckCircle size={13} color="var(--success)" />
                   <span style={{ fontSize: 12, color: "var(--success)", fontWeight: 500 }}>
-                    {indexed} doc{indexed !== 1 ? "s" : ""} ready for RAG
+                    {indexed} doc{indexed !== 1 ? "s" : ""} queued for indexing
                   </span>
                 </div>
               )}
@@ -387,7 +436,7 @@ function FileRow({
           flexShrink: 0,
         }}
       >
-        {file.status === "uploading" ? (
+        {(file.status === "uploading" || file.status === "indexing") ? (
           <div
             style={{
               width: 14,
@@ -420,9 +469,11 @@ function FileRow({
         <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 1 }}>
           {file.status === "uploading"
             ? "Uploading…"
+            : file.status === "indexing"
+            ? "Indexing in background…"
             : file.status === "error"
             ? file.error || "Failed"
-            : formatBytes(file.size)}
+            : "Indexed ✓"}
         </div>
       </div>
 
@@ -433,7 +484,7 @@ function FileRow({
       </div>
 
       {/* Delete */}
-      {hovered && file.status !== "uploading" && (
+      {hovered && file.status !== "uploading" && file.status !== "indexing" && (
         <button
           onClick={() => onRemove(file.id)}
           style={{
