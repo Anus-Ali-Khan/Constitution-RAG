@@ -80,12 +80,20 @@ function loadFiles(): UploadedFile[] {
 }
 
 export default function Sidebar({ open, onToggle }: SidebarProps) {
-  const [files, setFiles] = useState<UploadedFile[]>(() => loadFiles());
+  const [files, setFiles] = useState<UploadedFile[]>([]);
+  const [isHydrated, setIsHydrated] = useState(false);
 
-  // Persist files to localStorage on every change
   useEffect(() => {
+    setFiles(loadFiles());
+    setIsHydrated(true);
+  }, []);
+
+  // Persist files to localStorage only after hydration completes.
+  // This avoids overwriting persisted data with the initial empty state.
+  useEffect(() => {
+    if (!isHydrated || typeof window === "undefined") return;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(files));
-  }, [files]);
+  }, [files, isHydrated]);
 
   // Poll backend for indexing completion
   useEffect(() => {

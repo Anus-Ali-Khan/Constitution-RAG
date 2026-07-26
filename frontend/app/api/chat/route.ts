@@ -12,11 +12,11 @@ export async function POST(req: NextRequest) {
 
     let upstream: Response;
     try {
-      upstream = await fetch(`${BACKEND_URL}/query`, {
+      upstream = await fetch(`${BACKEND_URL}/retrieve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query }),
-        signal: AbortSignal.timeout(120_000),
+        // signal: AbortSignal.timeout(120_000),
       });
     } catch {
       // Network-level failure — backend is not reachable
@@ -34,7 +34,8 @@ export async function POST(req: NextRequest) {
       return Response.json({ answer: `Backend error: ${detail}`, sources: [] });
     }
 
-    return Response.json(data);
+    return Response.json({ answer: data, sources: data.sources ?? [] });
+
   } catch (err) {
     console.error("[chat]", err);
     return Response.json({ error: "Request failed" }, { status: 500 });

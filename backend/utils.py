@@ -267,8 +267,8 @@ def retrieve_from_supabase(query: str, k: int = 3):
         for row in result.data
     ]
 
-if __name__ == "__main__":
-    import sys
-    query = sys.argv[1] if len(sys.argv) > 1 else "What is the 18th amendment?"
-    chunks = retrieve_from_supabase(query, k=5)
-    export_chunks_to_json(chunks, "rag_results.json")
+# if __name__ == "__main__":
+#     import sys
+#     query = sys.argv[1] if len(sys.argv) > 1 else "What is the 18th amendment?"
+#     chunks = retrieve_from_supabase(query, k=5)
+#     export_chunks_to_json(chunks, "rag_results.json")

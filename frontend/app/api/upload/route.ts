@@ -33,17 +33,17 @@ export async function POST(req: NextRequest) {
     const upstream = new FormData();
     upstream.append("file", blob, file.name);
 
-    const res = await fetch(`${BACKEND_URL}/ingest`, {
-      method: "POST",
-      body: upstream,
-    });
+    const res = await fetch(`${BACKEND_URL}/upload-document`, {
+        method: "POST",
+        body: upstream,
+      });
 
-    if (!res.ok) {
-      const text = await res.text();
-      return Response.json({ error: text || "Ingestion request failed" }, { status: res.status });
-    }
+      if (!res.ok) {
+        const text = await res.text();
+        return Response.json({ error: text || "Ingestion request failed" }, { status: res.status });
+      }
 
-    return Response.json({ success: true, name: file.name });
+      return Response.json({ success: true, name: file.name });
   } catch (err) {
     console.error("[upload]", err);
     return Response.json({ error: "Upload failed" }, { status: 500 });

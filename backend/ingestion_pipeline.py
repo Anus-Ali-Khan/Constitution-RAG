@@ -1,11 +1,13 @@
 from utils import partition_document, create_chunks_by_title, summarise_chunks, create_vector_store 
+import time
 
 
 def run_complete_ingestion_pipeline(pdf_path: str):
     """Run the complete RAG ingestion pipeline"""
     print("🚀 Starting RAG Ingestion Pipeline")
     print("=" * 50)
-    
+
+    # time.sleep(10)  # Simulate some processing time for demonstration purposes
     # Step 1: Partition
     elements = partition_document(pdf_path)
     
