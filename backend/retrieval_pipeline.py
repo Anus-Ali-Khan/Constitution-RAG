@@ -4,11 +4,7 @@ from langchain_core.retrievers import BaseRetriever
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_community.chat_models import ChatOllama
-
-try:
-    from .utils import retrieve_from_supabase
-except ImportError:  # pragma: no cover - allows running as a script
-    from utils import retrieve_from_supabase
+from utils import retrieve_from_supabase
 
 
 class SupabaseRetriever(BaseRetriever):
