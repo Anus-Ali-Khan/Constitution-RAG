@@ -63,7 +63,8 @@ def separate_content_types(chunk):
         'text': chunk.text,
         'tables': [],
         'images': [],
-        'types': ['text']
+        'types': ['text'],
+        'metadata': chunk.metadata.to_dict()
     }
     
     # Check for tables and images in original elements
@@ -190,11 +191,19 @@ def summarise_chunks(chunks):
         doc = Document(
             page_content=enhanced_content,
             metadata={
-                "original_content": json.dumps({
-                    "raw_text": content_data['text'],
-                    "tables_html": content_data['tables'],
-                    "images_base64": content_data['images']
-                })
+                 "original_content": {
+                                    "raw_text": content_data['text'],
+                                    "tables_html": content_data['tables'],
+                                    "images_base64": content_data['images'],
+                                    "metadata": content_data['metadata']
+                                },
+                              "chunk_metadata": content_data["metadata"], 
+                # "original_content": json.dumps({
+                #     "raw_text": content_data['text'],
+                #     "tables_html": content_data['tables'],
+                #     "images_base64": content_data['images'],
+                #     "metadata": content_data['metadata']
+                # })
             }
         )
         
@@ -205,26 +214,26 @@ def summarise_chunks(chunks):
 
 
 
-def export_chunks_to_json(chunks, filename="chunks_export.json"):
-    """Export processed chunks to clean JSON format"""
-    export_data = []
+# def export_chunks_to_json(chunks, filename="chunks_export.json"):
+#     """Export processed chunks to clean JSON format"""
+#     export_data = []
     
-    for i, doc in enumerate(chunks):
-        chunk_data = {
-            "chunk_id": i + 1,
-            "enhanced_content": doc.page_content,
-            "metadata": {
-                "original_content": json.loads(doc.metadata.get("original_content", "{}"))
-            }
-        }
-        export_data.append(chunk_data)
+#     for i, doc in enumerate(chunks):
+#         chunk_data = {
+#             "chunk_id": i + 1,
+#             "enhanced_content": doc.page_content,
+#             "metadata": {
+#                 "original_content": json.loads(doc.metadata.get("original_content", "{}"))
+#             }
+#         }
+#         export_data.append(chunk_data)
     
-    # Save to file
-    with open(filename, 'w', encoding='utf-8') as f:
-        json.dump(export_data, f, indent=2, ensure_ascii=False)
+#     # Save to file
+#     with open(filename, 'w', encoding='utf-8') as f:
+#         json.dump(export_data, f, indent=2, ensure_ascii=False)
     
-    print(f"✅ Exported {len(export_data)} chunks to {filename}")
-    return export_data
+#     print(f"✅ Exported {len(export_data)} chunks to {filename}")
+#     return export_data
 
 
 def create_vector_store(documents):
