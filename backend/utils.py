@@ -60,6 +60,12 @@ def update_ingested_document_status(file_hash: str, status: str):
     ).execute()
 
 
+def delete_ingested_document(file_hash: str) -> None:
+    """Delete all chunks for this file hash from documents, plus its ingested_documents record"""
+    supabase.table("documents").delete().eq("metadata->>file_hash", file_hash).execute()
+    supabase.table("ingested_documents").delete().eq("file_hash", file_hash).execute()
+
+
 def partition_document(file_path: str, original_filename: str = None):
     """Extract elements from PDF using unstructured"""
     print(f"📄 Partitioning document: {file_path}")
@@ -205,7 +211,7 @@ def create_ai_enhanced_summary(text: str, tables: List[str], images: List[str]) 
         return summary
     
 
-def summarise_chunks(chunks):
+def summarise_chunks(chunks, file_hash: str = None):
     """Process all chunks with AI Summaries"""
     print("🧠 Processing chunks with AI Summaries...")
     
@@ -251,7 +257,8 @@ def summarise_chunks(chunks):
                                     "images_base64": content_data['images'],
                                     "metadata": content_data['metadata']
                                 },
-                              "chunk_metadata": content_data["metadata"], 
+                              "chunk_metadata": content_data["metadata"],
+                              "file_hash": file_hash,
                 # "original_content": json.dumps({
                 #     "raw_text": content_data['text'],
                 #     "tables_html": content_data['tables'],

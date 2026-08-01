@@ -12,6 +12,7 @@ from retrieval_pipeline import run_retrieval_pipeline
 from utils import (
     compute_file_hash,
     create_ingested_document,
+    delete_ingested_document,
     find_ingested_document,
     update_ingested_document_status,
 )
@@ -27,7 +28,7 @@ class RetrieveRequest(BaseModel):
 
 def run_ingestion_with_error_handling(temp_path: str, file_hash: str, original_filename: str) -> None:
     try:
-        run_complete_ingestion_pipeline(temp_path, original_filename)
+        run_complete_ingestion_pipeline(temp_path, original_filename, file_hash)
         update_ingested_document_status(file_hash, "completed")
     except Exception as exc:
         logger.exception("Background ingestion failed for %s: %s", temp_path, exc)
@@ -76,6 +77,23 @@ async def retrieve(payload: RetrieveRequest):
     try:
         result = run_retrieval_pipeline(payload.query)
         return result
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+@app.delete("/delete-document/{file_hash}", response_model=str)
+async def delete_document(file_hash: str):
+    """Endpoint to delete a document from the database"""
+    try:
+        existing = find_ingested_document(file_hash)
+        if existing is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Document not found.",
+            )
+        delete_ingested_document(file_hash)
+        return "Document deleted successfully."
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
