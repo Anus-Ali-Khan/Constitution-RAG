@@ -9,6 +9,12 @@ import uvicorn
 
 from ingestion_pipeline import run_complete_ingestion_pipeline
 from retrieval_pipeline import run_retrieval_pipeline
+from utils import (
+    compute_file_hash,
+    create_ingested_document,
+    find_ingested_document,
+    update_ingested_document_status,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -19,11 +25,13 @@ class RetrieveRequest(BaseModel):
     query: str
 
 
-def run_ingestion_with_error_handling(temp_path: str) -> None:
+def run_ingestion_with_error_handling(temp_path: str, file_hash: str) -> None:
     try:
         run_complete_ingestion_pipeline(temp_path)
+        update_ingested_document_status(file_hash, "completed")
     except Exception as exc:
         logger.exception("Background ingestion failed for %s: %s", temp_path, exc)
+        update_ingested_document_status(file_hash, "failed")
     finally:
         if os.path.exists(temp_path):
             os.remove(temp_path)
@@ -33,13 +41,29 @@ def run_ingestion_with_error_handling(temp_path: str) -> None:
 async def upload_document(file: Annotated[UploadFile, File(...)], background_tasks: BackgroundTasks):
     """Endpoint to upload a document and run the ingestion pipeline"""
     try:
+        content = await file.read()
+        file_hash = compute_file_hash(content)
+
+        existing = find_ingested_document(file_hash)
+        if existing is not None and existing["status"] in ("processing", "completed"):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="This document has already been uploaded.",
+            )
+
         with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename or "upload.pdf")[1] or ".pdf") as temp_file:
-            content = await file.read()
             temp_file.write(content)
             temp_path = temp_file.name
 
-        background_tasks.add_task(run_ingestion_with_error_handling, temp_path)
+        if existing is not None:
+            update_ingested_document_status(file_hash, "processing")
+        else:
+            create_ingested_document(file_hash, file.filename or "upload.pdf")
+
+        background_tasks.add_task(run_ingestion_with_error_handling, temp_path, file_hash)
         return "Document uploaded and processed successfully."
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     

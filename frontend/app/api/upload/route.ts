@@ -40,7 +40,14 @@ export async function POST(req: NextRequest) {
 
       if (!res.ok) {
         const text = await res.text();
-        return Response.json({ error: text || "Ingestion request failed" }, { status: res.status });
+        let message = text || "Ingestion request failed";
+        try {
+          const parsed = JSON.parse(text);
+          if (typeof parsed?.detail === "string") message = parsed.detail;
+        } catch {
+          // backend didn't return JSON — fall back to raw text
+        }
+        return Response.json({ error: message }, { status: res.status });
       }
 
       return Response.json({ success: true, name: file.name });

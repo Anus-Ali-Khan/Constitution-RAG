@@ -1,3 +1,4 @@
+import hashlib
 import json
 from typing import List
 
@@ -24,6 +25,39 @@ supabase = create_client(
     SUPABASE_URL,
     SUPABASE_KEY
 )
+
+
+def compute_file_hash(file_bytes: bytes) -> str:
+    """SHA-256 hash of raw file bytes, used to detect duplicate uploads"""
+    return hashlib.sha256(file_bytes).hexdigest()
+
+
+def find_ingested_document(file_hash: str):
+    """Return the ingested_documents row for this file hash, or None if not seen before"""
+    result = (
+        supabase.table("ingested_documents")
+        .select("*")
+        .eq("file_hash", file_hash)
+        .execute()
+    )
+    return result.data[0] if result.data else None
+
+
+def create_ingested_document(file_hash: str, filename: str):
+    """Record that ingestion for this file hash has started"""
+    result = (
+        supabase.table("ingested_documents")
+        .insert({"file_hash": file_hash, "filename": filename, "status": "processing"})
+        .execute()
+    )
+    return result.data[0]
+
+
+def update_ingested_document_status(file_hash: str, status: str):
+    """Update the ingestion status ('completed' or 'failed') for this file hash"""
+    supabase.table("ingested_documents").update({"status": status}).eq(
+        "file_hash", file_hash
+    ).execute()
 
 
 def partition_document(file_path: str):
@@ -57,6 +91,25 @@ def create_chunks_by_title(elements):
     return chunks
 
 
+CHUNK_METADATA_FIELDS = [
+    "filename",
+    "filetype",
+    "file_directory",
+    "languages",
+    "last_modified",
+    "page_number",
+    "parent_id",
+    "category_depth",
+    "text_as_html",
+    "orig_elements",
+]
+
+
+def normalize_chunk_metadata(raw_metadata):
+    """Ensure every chunk reports the same metadata keys, regardless of content type"""
+    return {field: raw_metadata.get(field) for field in CHUNK_METADATA_FIELDS}
+
+
 def separate_content_types(chunk):
     """Analyze what types of content are in a chunk"""
     content_data = {
@@ -64,7 +117,7 @@ def separate_content_types(chunk):
         'tables': [],
         'images': [],
         'types': ['text'],
-        'metadata': chunk.metadata.to_dict()
+        'metadata': normalize_chunk_metadata(chunk.metadata.to_dict())
     }
     
     # Check for tables and images in original elements
