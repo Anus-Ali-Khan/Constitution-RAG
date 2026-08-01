@@ -25,9 +25,9 @@ class RetrieveRequest(BaseModel):
     query: str
 
 
-def run_ingestion_with_error_handling(temp_path: str, file_hash: str) -> None:
+def run_ingestion_with_error_handling(temp_path: str, file_hash: str, original_filename: str) -> None:
     try:
-        run_complete_ingestion_pipeline(temp_path)
+        run_complete_ingestion_pipeline(temp_path, original_filename)
         update_ingested_document_status(file_hash, "completed")
     except Exception as exc:
         logger.exception("Background ingestion failed for %s: %s", temp_path, exc)
@@ -60,7 +60,9 @@ async def upload_document(file: Annotated[UploadFile, File(...)], background_tas
         else:
             create_ingested_document(file_hash, file.filename or "upload.pdf")
 
-        background_tasks.add_task(run_ingestion_with_error_handling, temp_path, file_hash)
+        background_tasks.add_task(
+            run_ingestion_with_error_handling, temp_path, file_hash, file.filename or "upload.pdf"
+        )
         return "Document uploaded and processed successfully."
     except HTTPException:
         raise
@@ -68,10 +70,10 @@ async def upload_document(file: Annotated[UploadFile, File(...)], background_tas
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     
 
-@app.post("/retrieve", response_model=str)
+@app.post("/retrieve")
 async def retrieve(payload: RetrieveRequest):
     """Endpoint to retrieve information based on a query"""
-    try:      
+    try:
         result = run_retrieval_pipeline(payload.query)
         return result
     except Exception as e:

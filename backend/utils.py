@@ -60,12 +60,13 @@ def update_ingested_document_status(file_hash: str, status: str):
     ).execute()
 
 
-def partition_document(file_path: str):
+def partition_document(file_path: str, original_filename: str = None):
     """Extract elements from PDF using unstructured"""
     print(f"📄 Partitioning document: {file_path}")
-    
+
     elements = partition_pdf(
         filename=file_path,  # Path to your PDF file
+        metadata_filename=original_filename,  # Real filename to stamp into element metadata
         strategy="hi_res", # Use the most accurate (but slower) processing method of extraction
         infer_table_structure=True, # Keep tables as structured HTML, not jumbled text
         extract_image_block_types=["Image"], # Grab images found in the PDF

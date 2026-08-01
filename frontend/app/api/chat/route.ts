@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
       return Response.json({ answer: `Backend error: ${detail}`, sources: [] });
     }
 
-    return Response.json({ answer: data, sources: data.sources ?? [] });
+    return Response.json({ answer: data.answer, sources: data.sources ?? [] });
 
   } catch (err) {
     console.error("[chat]", err);

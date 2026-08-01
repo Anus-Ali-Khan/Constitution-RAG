@@ -6,11 +6,16 @@ import TypingIndicator from "./TypingIndicator";
 import MessageBubble from "./MessageBubble";
 import ThemeToggle from "./ThemeToggle";
 
+export interface Source {
+  content: string;
+  metadata: Record<string, unknown>;
+}
+
 export interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
-  sources?: string[];
+  sources?: Source[];
   timestamp: Date;
 }
 

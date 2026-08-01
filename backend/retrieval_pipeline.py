@@ -15,7 +15,7 @@ class SupabaseRetriever(BaseRetriever):
         return retrieve_from_supabase(query, k=self.k)
 
 
-def run_retrieval_pipeline(query: str) -> str:
+def run_retrieval_pipeline(query: str) -> dict:
     """Run the full hybrid retrieval + reranking + generation pipeline for a query."""
 
     # Step 1: Hybrid search
@@ -53,4 +53,10 @@ Please provide a clear, helpful answer using only the information from these doc
     ]
 
     result = model.invoke(messages)
-    return result.content
+
+    sources = [
+        {"content": doc.page_content, "metadata": doc.metadata}
+        for doc in top_docs
+    ]
+
+    return {"answer": result.content, "sources": sources}

@@ -288,22 +288,32 @@ export default function MessageBubble({ message, onEdit }: Props) {
                   </span>
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-                  {message.sources.map((src, i) => (
-                    <span
-                      key={i}
-                      style={{
-                        fontSize: 11,
-                        padding: "2px 9px",
-                        borderRadius: 20,
-                        background: "var(--accent-bg)",
-                        border: "1px solid var(--accent)",
-                        color: "var(--accent)",
-                        opacity: 0.85,
-                      }}
-                    >
-                      {src}
-                    </span>
-                  ))}
+                  {message.sources.map((src, i) => {
+                    const chunkMeta =
+                      (src.metadata?.chunk_metadata as Record<string, unknown>) ?? {};
+                    const filename = (chunkMeta.filename as string) ?? "Document";
+                    const page = chunkMeta.page_number;
+                    const label = page != null ? `${filename} · p.${page}` : filename;
+
+                    return (
+                      <span
+                        key={i}
+                        title={src.content}
+                        style={{
+                          fontSize: 11,
+                          padding: "2px 9px",
+                          borderRadius: 20,
+                          background: "var(--accent-bg)",
+                          border: "1px solid var(--accent)",
+                          color: "var(--accent)",
+                          opacity: 0.85,
+                          cursor: "default",
+                        }}
+                      >
+                        {label}
+                      </span>
+                    );
+                  })}
                 </div>
               </div>
             )}
