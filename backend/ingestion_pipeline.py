@@ -15,7 +15,7 @@ def run_complete_ingestion_pipeline(pdf_path: str, original_filename: str = None
     chunks = create_chunks_by_title(elements)
 
     # Step 3: AI Summarisation
-    summarised_chunks = summarise_chunks(chunks, file_hash)
+    summarised_chunks = summarise_chunks(chunks, file_hash, pdf_path)
     
     # Step 4: Vector Store
     db = create_vector_store(summarised_chunks)

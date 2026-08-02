@@ -4,7 +4,7 @@ from langchain_core.retrievers import BaseRetriever
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_community.chat_models import ChatOllama
-from utils import retrieve_from_supabase
+from utils import retrieve_from_supabase, get_page_image_base64
 
 
 class SupabaseRetriever(BaseRetriever):
@@ -55,7 +55,11 @@ Please provide a clear, helpful answer using only the information from these doc
     result = model.invoke(messages)
 
     sources = [
-        {"content": doc.page_content, "metadata": doc.metadata}
+        {
+            "content": doc.page_content,
+            "metadata": doc.metadata,
+            "page_image": get_page_image_base64(doc.metadata),
+        }
         for doc in top_docs
     ]
 

@@ -1,5 +1,4 @@
 import hashlib
-import json
 from typing import List
 
 # Unstructured for document parsing
@@ -14,6 +13,8 @@ from langchain_core.messages import HumanMessage
 from langchain_community.vectorstores import SupabaseVectorStore
 from supabase import create_client
 from dotenv import load_dotenv
+import fitz  # PyMuPDF
+import base64
 import os
 load_dotenv()
 
@@ -211,20 +212,46 @@ def create_ai_enhanced_summary(text: str, tables: List[str], images: List[str]) 
         return summary
     
 
-def summarise_chunks(chunks, file_hash: str = None):
+def render_page_image_base64(pdf_path: str, page_number: int) -> str:
+    """Render a single PDF page (1-indexed) to a base64-encoded PNG"""
+    try:
+        doc = fitz.open(pdf_path)
+        page = doc.load_page(page_number - 1)
+        png_bytes = page.get_pixmap().tobytes("png")
+        doc.close()
+        return base64.b64encode(png_bytes).decode("utf-8")
+    except Exception as e:
+        print(f" ❌ Page image render failed for page {page_number}: {e}")
+        return None
+
+
+def get_page_image_base64(metadata: dict) -> str:
+    """Pull the pre-rendered page image out of a source's stored metadata, if present"""
+    chunk_metadata = metadata.get("chunk_metadata") or {}
+    return chunk_metadata.get("page_image")
+
+
+def summarise_chunks(chunks, file_hash: str = None, pdf_path: str = None):
     """Process all chunks with AI Summaries"""
     print("🧠 Processing chunks with AI Summaries...")
-    
+
     langchain_documents = []
     total_chunks = len(chunks)
-    
+    page_image_cache = {}
+
     for i, chunk in enumerate(chunks):
         current_chunk = i + 1
         print(f"   Processing chunk {current_chunk}/{total_chunks}")
-        
+
         # Analyze chunk content
         content_data = separate_content_types(chunk)
-        
+
+        page_number = content_data['metadata'].get('page_number')
+        if pdf_path and page_number is not None:
+            if page_number not in page_image_cache:
+                page_image_cache[page_number] = render_page_image_base64(pdf_path, page_number)
+            content_data['metadata']['page_image'] = page_image_cache[page_number]
+
         # Debug prints
         print(f"     Types found: {content_data['types']}")
         print(f"     Tables: {len(content_data['tables'])}, Images: {len(content_data['images'])}")
@@ -307,7 +334,8 @@ def create_vector_store(documents):
         embedding=embedding_model,
         client=supabase,
         table_name="documents",
-        query_name="match_documents"
+        query_name="match_documents",
+        chunk_size=20,  # small batches — rows now carry large base64 page images
     )
 
     print("✅ Vector store created")
@@ -336,6 +364,8 @@ def retrieve_from_supabase(query: str, k: int = 3):
         )
         for row in result.data
     ]
+
+
 
 # if __name__ == "__main__":
 #     import sys

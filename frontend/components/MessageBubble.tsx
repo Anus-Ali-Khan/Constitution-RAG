@@ -14,6 +14,7 @@ export default function MessageBubble({ message, onEdit }: Props) {
   const [hovered, setHovered] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState("");
+  const [expandedSource, setExpandedSource] = useState<number | null>(null);
   const editRef = useRef<HTMLTextAreaElement>(null);
   const isUser  = message.role === "user";
 
@@ -294,27 +295,47 @@ export default function MessageBubble({ message, onEdit }: Props) {
                     const filename = (chunkMeta.filename as string) ?? "Document";
                     const page = chunkMeta.page_number;
                     const label = page != null ? `${filename} · p.${page}` : filename;
+                    const hasImage = Boolean(src.page_image);
+                    const isExpanded = expandedSource === i;
 
                     return (
-                      <span
+                      <button
                         key={i}
+                        type="button"
                         title={src.content}
+                        onClick={() => hasImage && setExpandedSource(isExpanded ? null : i)}
                         style={{
                           fontSize: 11,
                           padding: "2px 9px",
                           borderRadius: 20,
-                          background: "var(--accent-bg)",
+                          background: isExpanded ? "var(--accent)" : "var(--accent-bg)",
                           border: "1px solid var(--accent)",
-                          color: "var(--accent)",
-                          opacity: 0.85,
-                          cursor: "default",
+                          color: isExpanded ? "#fff" : "var(--accent)",
+                          opacity: isExpanded ? 1 : 0.85,
+                          cursor: hasImage ? "pointer" : "default",
                         }}
                       >
                         {label}
-                      </span>
+                      </button>
                     );
                   })}
                 </div>
+
+                {expandedSource != null && message.sources[expandedSource]?.page_image && (
+                  <div style={{ marginTop: 8 }}>
+                    <img
+                      src={`data:image/png;base64,${message.sources[expandedSource].page_image}`}
+                      alt="Source page"
+                      style={{
+                        maxWidth: "100%",
+                        maxHeight: 480,
+                        borderRadius: 8,
+                        border: "1px solid var(--border)",
+                        display: "block",
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             )}
           </>

@@ -9,6 +9,7 @@ import ThemeToggle from "./ThemeToggle";
 export interface Source {
   content: string;
   metadata: Record<string, unknown>;
+  page_image?: string | null;
 }
 
 export interface Message {
